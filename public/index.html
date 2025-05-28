@@ -8,10 +8,37 @@
 </head>
 <body>
   <div id="app">
-    <input id="nameInput" placeholder="Enter your name" />
-    <button id="joinBtn">Join Game</button>
-    <p id="status"></p>
-    <div id="board" class="board"></div>
+    <div class="setup-panel" id="setupPanel">
+      <h1>Tic Tac Toe</h1>
+      <div class="join-form">
+        <input id="nameInput" placeholder="Enter your name" />
+        <button id="joinBtn">Join Game</button>
+      </div>
+    </div>
+
+    <div class="game-panel" id="gamePanel">
+      <div class="game-info">
+        <div class="player-info" id="playerInfo">
+          <div class="player-card you">
+            <h3>You</h3>
+            <div id="yourInfo">Waiting...</div>
+          </div>
+          <div class="vs">VS</div>
+          <div class="player-card opponent">
+            <h3>Opponent</h3>
+            <div id="opponentInfo">Waiting...</div>
+          </div>
+        </div>
+        <div class="turn-indicator" id="turnIndicator"></div>
+      </div>
+
+      <div id="board" class="board"></div>
+      
+      <div class="status-panel">
+        <p id="status" class="status-message"></p>
+        <div id="queueInfo" class="queue-info"></div>
+      </div>
+    </div>
   </div>
   <script src="client.js"></script>
 </body>
