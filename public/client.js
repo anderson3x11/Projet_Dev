@@ -22,17 +22,28 @@ joinBtn.onclick = () => {
       status.textContent = 'Waiting for opponent...';
     }
 
-    if (msg.type === 'start') {
+    if (msg.type === 'start' || msg.type === 'rematch_start') {
       myMark = msg.mark;
       myTurn = myMark === 'X';
-      status.textContent = `Game started vs ${msg.opponent}. You are ${myMark}`;
+      status.textContent = `Game started. You are ${myMark}`;
       renderBoard();
     }
 
     if (msg.type === 'move') {
-      placeMark(msg.index, myMark === 'X' ? 'O' : 'X');
-      myTurn = true;
-      status.textContent = 'Your turn';
+      placeMark(msg.index, msg.mark);
+      myTurn = msg.mark !== myMark;
+      status.textContent = myTurn ? 'Your turn' : 'Waiting for opponent...';
+    }
+
+    if (msg.type === 'game_over') {
+      if (msg.winner === null) {
+        status.textContent = 'Draw!';
+      } else if (msg.winner === myMark) {
+        status.textContent = 'You win!';
+      } else {
+        status.textContent = 'You lose!';
+      }
+      showRematchButton();
     }
 
     if (msg.type === 'opponent_left') {
@@ -67,4 +78,15 @@ function placeMark(index, mark) {
     cell.textContent = mark;
     cell.classList.add('taken');
   }
+}
+
+function showRematchButton() {
+  const btn = document.createElement('button');
+  btn.textContent = 'Rematch';
+  btn.onclick = () => {
+    socket.send(JSON.stringify({ type: 'rematch' }));
+    status.textContent = 'Waiting for opponent to accept rematch...';
+    btn.remove();
+  };
+  document.body.appendChild(btn);
 }
