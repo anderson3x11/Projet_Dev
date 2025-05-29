@@ -8,6 +8,13 @@ let opponentName;
 let myStats = null;
 let opponentStats = null;
 let isPlayingBot = false;
+let currentServer = null;
+
+// Server connection elements
+const serverPanel = document.getElementById('serverPanel');
+const serverList = document.getElementById('serverList');
+const serverAddress = document.getElementById('serverAddress');
+const connectBtn = document.getElementById('connectBtn');
 
 // Récupération des éléments du DOM
 const status = document.getElementById('status');
@@ -53,7 +60,93 @@ const rankingsBody = document.getElementById('rankingsBody');
 // Masquer initialement le panneau de jeu
 gamePanel.style.display = 'none';
 
-// Afficher/masquer les formulaires d'authentification
+// Initialize server discovery
+async function discoverServer() {
+  try {
+    const response = await fetch('/api/server-info');
+    const serverInfo = await response.json();
+    
+    serverList.innerHTML = '';
+    
+    // Add localhost
+    addServerToList('localhost:' + serverInfo.port, true);
+    
+    // Add network addresses
+    serverInfo.addresses.forEach(addr => {
+      addServerToList(addr + ':' + serverInfo.port);
+    });
+  } catch (error) {
+    console.error('Error discovering server:', error);
+  }
+}
+
+function addServerToList(address, isLocal = false) {
+  const serverItem = document.createElement('div');
+  serverItem.className = 'server-item' + (isLocal ? ' local' : '');
+  serverItem.innerHTML = `
+    <span class="address">${address}</span>
+    <span>${isLocal ? 'Local' : 'Network'}</span>
+  `;
+  serverItem.onclick = () => connectToServer(address);
+  serverList.appendChild(serverItem);
+}
+
+function connectToServer(address) {
+  if (socket) {
+    socket.close();
+  }
+
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsAddress = `${protocol}//${address}`;
+  
+  try {
+    socket = new WebSocket(wsAddress);
+    
+    socket.onopen = () => {
+      console.log('Connected to server:', address);
+      currentServer = address;
+      serverPanel.style.display = 'none';
+      setupPanel.style.display = 'block';
+      status.textContent = ''; // Clear any error messages
+    };
+    
+    socket.onclose = () => {
+      console.log('Disconnected from server');
+      if (currentServer === address) {
+        // Only show connection error if we're not in an active game
+        if (!isPlayingBot && !opponentName) {
+          status.textContent = 'Connection lost. Attempting to reconnect...';
+          // Attempt to reconnect after a delay
+          setTimeout(() => {
+            if (!socket || socket.readyState !== WebSocket.OPEN) {
+              connectToServer(address);
+            }
+          }, 3000);
+        }
+      }
+    };
+    
+    setupWebSocketHandlers();
+  } catch (error) {
+    console.error('Error connecting to server:', error);
+    status.textContent = 'Connection error. Click Find Match to try again.';
+  }
+}
+
+// Manual connection handler
+connectBtn.onclick = () => {
+  const address = serverAddress.value.trim();
+  if (address) {
+    connectToServer(address);
+  } else {
+    alert('Please enter a server address');
+  }
+};
+
+// Start server discovery
+discoverServer();
+
+// Authentication handlers
 showRegisterBtn.onclick = (e) => {
   e.preventDefault();
   loginForm.style.display = 'none';
@@ -131,7 +224,14 @@ loginBtn.onclick = async () => {
       board.style.display = 'none';
       updatePlayerInfo();
       updateStats(myStats);
-      connectToGame();
+      // Only send the name to the server, don't start matchmaking yet
+      if (socket) {
+        socket.send(JSON.stringify({ 
+          type: 'set_name', 
+          name: playerName,
+          autoMatch: false // Add flag to prevent auto-matching
+        }));
+      }
     } else {
       alert(data.error);
     }
@@ -146,7 +246,8 @@ logoutBtn.onclick = () => {
     socket.close();
   }
   resetGame();
-  setupPanel.style.display = 'block';
+  serverPanel.style.display = 'block';
+  setupPanel.style.display = 'none';
   gamePanel.style.display = 'none';
   loginUsername.value = '';
   loginPassword.value = '';
@@ -169,16 +270,17 @@ function resetGame() {
   updateStats(null, true);
 }
 
-function connectToGame() {
-  socket = new WebSocket(`ws://${location.host}`);
-  
-  socket.onopen = () => {
-    socket.send(JSON.stringify({ type: 'set_name', name: playerName }));
-  };
-
+// Move existing WebSocket event handlers to a separate function
+function setupWebSocketHandlers() {
   socket.onmessage = event => {
     const msg = JSON.parse(event.data);
-    console.log('Message reçu:', msg.type);
+    console.log('Message received:', msg.type);
+
+    // Clear connection error message if we receive any message
+    if (status.textContent.includes('Connection error') || 
+        status.textContent.includes('Connection lost')) {
+      status.textContent = '';
+    }
 
     if (msg.type === 'stats_update') {
       if (msg.stats.username === playerName) {
@@ -267,8 +369,10 @@ function connectToGame() {
   };
 
   socket.onerror = error => {
-    console.error('Erreur WebSocket:', error);
-    status.textContent = 'Erreur de connexion. Veuillez rafraîchir la page.';
+    console.error('WebSocket error:', error);
+    if (!isPlayingBot && !opponentName) {
+      status.textContent = 'Connection error. Click Find Match to try again.';
+    }
   };
 }
 
@@ -670,10 +774,21 @@ async function updatePlayerStats(result) {
 
 // Game mode selection handlers
 findMatchBtn.onclick = () => {
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    console.log('Reconnecting to server...');
+    const currentAddr = currentServer || window.location.host;
+    connectToServer(currentAddr);
+    // Wait for connection before sending find_match
+    socket.onopen = () => {
+      socket.send(JSON.stringify({ type: 'set_name', name: playerName, autoMatch: false }));
+      socket.send(JSON.stringify({ type: 'find_match' }));
+    };
+  } else {
+    socket.send(JSON.stringify({ type: 'find_match' }));
+  }
   isPlayingBot = false;
   gameModeSelection.style.display = 'none';
   board.style.display = 'grid';
-  socket.send(JSON.stringify({ type: 'find_match' }));
   status.textContent = 'Recherche d\'un adversaire...';
 };
 

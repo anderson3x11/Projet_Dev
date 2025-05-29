@@ -5,14 +5,39 @@ const http = require('http');
 const WebSocket = require('ws');
 const path = require('path');
 const db = require('./database');
+const os = require('os');
 
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
+// Get local IP addresses
+function getLocalIPs() {
+  const interfaces = os.networkInterfaces();
+  const addresses = [];
+  
+  for (const iface of Object.values(interfaces)) {
+    for (const addr of iface) {
+      if (addr.family === 'IPv4' && !addr.internal) {
+        addresses.push(addr.address);
+      }
+    }
+  }
+  
+  return addresses;
+}
+
 // Configuration du dossier statique pour les fichiers clients
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
+
+// Add endpoint to get server info
+app.get('/api/server-info', (req, res) => {
+  res.json({
+    addresses: getLocalIPs(),
+    port: server.address().port
+  });
+});
 
 // Points d'accès pour l'authentification
 app.post('/api/register', async (req, res) => {
@@ -67,9 +92,14 @@ app.post('/api/update-stats', async (req, res) => {
   }
 });
 
-// Démarrage du serveur sur le port 8080
-server.listen(8080, () => {
-  console.log('Serveur démarré sur http://localhost:8080');
+// Démarrage du serveur sur le port 8080 et toutes les interfaces
+server.listen(8080, '0.0.0.0', () => {
+  const addresses = getLocalIPs();
+  console.log('Serveur démarré sur:');
+  console.log('- Local: http://localhost:8080');
+  addresses.forEach(addr => {
+    console.log(`- Network: http://${addr}:8080`);
+  });
 });
 
 // Variables globales pour la gestion des joueurs et des parties
@@ -292,16 +322,38 @@ wss.on('connection', function connection(ws) {
         console.error('Erreur lors de la récupération des statistiques du joueur:', error);
       }
 
-      // Vérifie s'il y a des parties actives
-      const activeGames = games.size > 0;
+      // Only auto-match if explicitly requested
+      if (data.autoMatch !== false) {
+        // Vérifie s'il y a des parties actives
+        const activeGames = games.size > 0;
 
-      if (!waitingPlayer && !activeGames) {
+        if (!waitingPlayer && !activeGames) {
+          waitingPlayer = ws;
+          ws.send(JSON.stringify({ type: 'waiting' }));
+        } else if (!waitingPlayer && activeGames) {
+          // S'il y a des parties actives, ajoute le nouveau joueur à la file d'attente
+          addToQueue(ws);
+        } else if (waitingPlayer) {
+          await startGame(waitingPlayer, ws);
+          waitingPlayer = null;
+        }
+      }
+    }
+
+    // Gestion de la demande de match
+    if (data.type === 'find_match') {
+      console.log(`${ws.playerName} recherche une partie`);
+      
+      // Remove from any existing queue first
+      const queueIndex = playerQueue.indexOf(ws);
+      if (queueIndex !== -1) {
+        playerQueue.splice(queueIndex, 1);
+      }
+
+      if (!waitingPlayer) {
         waitingPlayer = ws;
         ws.send(JSON.stringify({ type: 'waiting' }));
-      } else if (!waitingPlayer && activeGames) {
-        // S'il y a des parties actives, ajoute le nouveau joueur à la file d'attente
-        addToQueue(ws);
-      } else if (waitingPlayer) {
+      } else if (waitingPlayer !== ws) {
         await startGame(waitingPlayer, ws);
         waitingPlayer = null;
       }

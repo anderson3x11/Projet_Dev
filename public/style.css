@@ -541,3 +541,89 @@ h2 {
   transform: none;
   box-shadow: none;
 }
+
+/* Server Connection Panel Styles */
+.server-panel {
+  max-width: 500px;
+  margin: 40px auto;
+  padding: 20px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.server-info {
+  margin-top: 20px;
+}
+
+.server-list {
+  margin: 15px 0;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.server-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  margin: 8px 0;
+  background: #f8f9fa;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.server-item:hover {
+  background: #e9ecef;
+  transform: translateY(-2px);
+}
+
+.server-item.local {
+  border-left: 4px solid #4CAF50;
+}
+
+.server-item .address {
+  font-weight: 500;
+  color: #2196F3;
+}
+
+.manual-connect {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.manual-connect input {
+  flex: 1;
+  padding: 12px;
+  font-size: 16px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.manual-connect input:focus {
+  outline: none;
+  border-color: #2196F3;
+  box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.1);
+}
+
+.manual-connect button {
+  padding: 12px 24px;
+  font-size: 16px;
+  background: #2196F3;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.manual-connect button:hover {
+  background: #1976D2;
+  transform: translateY(-2px);
+}
+
+.manual-connect button:active {
+  transform: translateY(0);
+}

@@ -8,7 +8,20 @@
 </head>
 <body>
   <div id="app">
-    <div class="setup-panel" id="setupPanel">
+    <!-- Server Connection Panel -->
+    <div class="server-panel" id="serverPanel">
+      <h2>Connect to Server</h2>
+      <div class="server-info">
+        <p>Available servers:</p>
+        <div id="serverList" class="server-list"></div>
+        <div class="manual-connect">
+          <input type="text" id="serverAddress" placeholder="Server IP:Port (e.g. 192.168.1.100:8080)" />
+          <button id="connectBtn">Connect</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="setup-panel" id="setupPanel" style="display: none;">
       <h1>Tic Tac Toe</h1>
       
       <!-- Login -->
