@@ -66,17 +66,65 @@ async function discoverServer() {
     const response = await fetch('/api/server-info');
     const serverInfo = await response.json();
     
+    // First try the current hostname
+    const currentHost = window.location.host;
+    if (await tryConnection(currentHost)) {
+      return;
+    }
+
+    // Then try localhost
+    if (await tryConnection('localhost:' + serverInfo.port)) {
+      return;
+    }
+
+    // Try all network addresses
+    for (const addr of serverInfo.addresses) {
+      if (await tryConnection(addr + ':' + serverInfo.port)) {
+        return;
+      }
+    }
+
+    // If all automatic attempts fail, show manual connection panel
+    serverPanel.style.display = 'block';
     serverList.innerHTML = '';
     
-    // Add localhost
+    // Add all available servers to the list
     addServerToList('localhost:' + serverInfo.port, true);
-    
-    // Add network addresses
     serverInfo.addresses.forEach(addr => {
       addServerToList(addr + ':' + serverInfo.port);
     });
   } catch (error) {
     console.error('Error discovering server:', error);
+    serverPanel.style.display = 'block';
+  }
+}
+
+async function tryConnection(address) {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsAddress = `${protocol}//${address}`;
+  
+  try {
+    const ws = new WebSocket(wsAddress);
+    
+    return new Promise((resolve) => {
+      ws.onopen = () => {
+        console.log('Connected to server:', address);
+        socket = ws;
+        currentServer = address;
+        serverPanel.style.display = 'none';
+        setupPanel.style.display = 'block';
+        status.textContent = '';
+        setupWebSocketHandlers();
+        resolve(true);
+      };
+      
+      ws.onerror = () => {
+        ws.close();
+        resolve(false);
+      };
+    });
+  } catch {
+    return false;
   }
 }
 
