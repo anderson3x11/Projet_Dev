@@ -20,6 +20,7 @@
   "homepage": "https://github.com/anderson3x11/Projet_Dev#readme",
   "dependencies": {
     "express": "^5.1.0",
+    "sqlite3": "^5.1.7",
     "ws": "^8.18.2"
   }
 }

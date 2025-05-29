@@ -5,12 +5,12 @@ let myMark;
 let cells = [];
 let playerName;
 let opponentName;
+let myStats = null;
+let opponentStats = null;
 
 // Récupération des éléments du DOM
 const status = document.getElementById('status');
 const board = document.getElementById('board');
-const joinBtn = document.getElementById('joinBtn');
-const nameInput = document.getElementById('nameInput');
 const setupPanel = document.getElementById('setupPanel');
 const gamePanel = document.getElementById('gamePanel');
 const turnIndicator = document.getElementById('turnIndicator');
@@ -18,54 +18,172 @@ const yourInfo = document.getElementById('yourInfo');
 const opponentInfo = document.getElementById('opponentInfo');
 const queueInfo = document.getElementById('queueInfo');
 
+// Éléments d'authentification
+const loginForm = document.getElementById('loginForm');
+const registerForm = document.getElementById('registerForm');
+const loginUsername = document.getElementById('loginUsername');
+const loginPassword = document.getElementById('loginPassword');
+const registerUsername = document.getElementById('registerUsername');
+const registerPassword = document.getElementById('registerPassword');
+const confirmPassword = document.getElementById('confirmPassword');
+const loginBtn = document.getElementById('loginBtn');
+const registerBtn = document.getElementById('registerBtn');
+const showRegisterBtn = document.getElementById('showRegisterBtn');
+const showLoginBtn = document.getElementById('showLoginBtn');
+const logoutBtn = document.getElementById('logoutBtn');
+
+// Éléments des statistiques
+const yourGames = document.getElementById('yourGames');
+const yourWins = document.getElementById('yourWins');
+const yourWinRate = document.getElementById('yourWinRate');
+const opponentGames = document.getElementById('opponentGames');
+const opponentWins = document.getElementById('opponentWins');
+const opponentWinRate = document.getElementById('opponentWinRate');
+
+// Éléments du classement
+const showRankingsBtn = document.getElementById('showRankingsBtn');
+const rankingsModal = document.getElementById('rankingsModal');
+const closeBtn = document.querySelector('.close');
+const rankingsBody = document.getElementById('rankingsBody');
+
 // Masquer initialement le panneau de jeu
 gamePanel.style.display = 'none';
 
-function updateTurnStatus() {
-  turnIndicator.textContent = myTurn ? 'Your turn!' : "Opponent's turn";
-  turnIndicator.style.color = myTurn ? '#4CAF50' : '#f44336';
-  
-  // Mise en évidence du joueur actif
-  const yourCard = document.querySelector('.player-card.you');
-  const opponentCard = document.querySelector('.player-card.opponent');
-  yourCard.classList.toggle('active', myTurn);
-  opponentCard.classList.toggle('active', !myTurn);
-}
+// Afficher/masquer les formulaires d'authentification
+showRegisterBtn.onclick = (e) => {
+  e.preventDefault();
+  loginForm.style.display = 'none';
+  registerForm.style.display = 'block';
+};
 
-function updatePlayerInfo() {
-  yourInfo.innerHTML = `
-    <div>${playerName}</div>
-    <div style="font-size: 1.2em; margin-top: 5px; font-weight: bold; color: ${myMark === 'X' ? '#2196F3' : '#f44336'}">${myMark || '?'}</div>
-  `;
-  
-  opponentInfo.innerHTML = opponentName ? `
-    <div>${opponentName}</div>
-    <div style="font-size: 1.2em; margin-top: 5px; font-weight: bold; color: ${myMark === 'X' ? '#f44336' : '#2196F3'}">${myMark === 'X' ? 'O' : 'X'}</div>
-  ` : 'Waiting...';
-}
+showLoginBtn.onclick = (e) => {
+  e.preventDefault();
+  registerForm.style.display = 'none';
+  loginForm.style.display = 'block';
+};
 
-joinBtn.onclick = () => {
-  if (!nameInput.value) {
-    alert('Please enter your name first!');
+// Gestion de l'inscription
+registerBtn.onclick = async () => {
+  if (!registerUsername.value || !registerPassword.value) {
+    alert('Veuillez remplir tous les champs');
     return;
   }
-  
-  playerName = nameInput.value;
-  setupPanel.style.display = 'none';
-  gamePanel.style.display = 'block';
+
+  if (registerPassword.value !== confirmPassword.value) {
+    alert('Les mots de passe ne correspondent pas');
+    return;
+  }
+
+  try {
+    const response = await fetch('/api/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: registerUsername.value,
+        password: registerPassword.value
+      })
+    });
+
+    const data = await response.json();
+    if (data.success) {
+      alert('Inscription réussie ! Veuillez vous connecter.');
+      registerForm.style.display = 'none';
+      loginForm.style.display = 'block';
+      registerUsername.value = '';
+      registerPassword.value = '';
+      confirmPassword.value = '';
+    } else {
+      alert(data.error);
+    }
+  } catch (error) {
+    alert('L\'inscription a échoué. Veuillez réessayer.');
+  }
+};
+
+// Gestion de la connexion
+loginBtn.onclick = async () => {
+  if (!loginUsername.value || !loginPassword.value) {
+    alert('Veuillez remplir tous les champs');
+    return;
+  }
+
+  try {
+    const response = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: loginUsername.value,
+        password: loginPassword.value
+      })
+    });
+
+    const data = await response.json();
+    if (data.success) {
+      playerName = data.player.username;
+      myStats = data.player;
+      setupPanel.style.display = 'none';
+      gamePanel.style.display = 'block';
+      updatePlayerInfo();
+      updateStats(myStats);
+      connectToGame();
+    } else {
+      alert(data.error);
+    }
+  } catch (error) {
+    alert('La connexion a échoué. Veuillez réessayer.');
+  }
+};
+
+// Gestion de la déconnexion
+logoutBtn.onclick = () => {
+  if (socket) {
+    socket.close();
+  }
+  resetGame();
+  setupPanel.style.display = 'block';
+  gamePanel.style.display = 'none';
+  loginUsername.value = '';
+  loginPassword.value = '';
+};
+
+function resetGame() {
+  myTurn = false;
+  myMark = null;
+  cells = [];
+  playerName = null;
+  opponentName = null;
+  myStats = null;
+  opponentStats = null;
+  board.innerHTML = '';
+  status.textContent = '';
+  queueInfo.textContent = '';
+  turnIndicator.textContent = '';
   updatePlayerInfo();
-  
+  updateStats(null);
+  updateStats(null, true);
+}
+
+function connectToGame() {
   socket = new WebSocket(`ws://${location.host}`);
+  
   socket.onopen = () => {
     socket.send(JSON.stringify({ type: 'set_name', name: playerName }));
   };
 
   socket.onmessage = event => {
     const msg = JSON.parse(event.data);
-    console.log('Received message:', msg.type);
+    console.log('Message reçu:', msg.type);
+
+    if (msg.type === 'stats_update') {
+      if (msg.stats.username === playerName) {
+        updateStats(msg.stats);
+      } else if (msg.stats.username === opponentName) {
+        updateStats(msg.stats, true);
+      }
+    }
 
     if (msg.type === 'waiting') {
-      status.textContent = 'Waiting for opponent...';
+      status.textContent = 'En attente d\'un adversaire...';
       queueInfo.textContent = '';
     }
 
@@ -92,11 +210,11 @@ joinBtn.onclick = () => {
 
     if (msg.type === 'game_over') {
       if (msg.winner === null) {
-        status.innerHTML = '<span class="draw">Game ended in a draw!</span>';
+        status.innerHTML = '<span class="draw">La partie se termine sur un match nul !</span>';
       } else if (msg.winner === myMark) {
-        status.innerHTML = '<span class="winner">You win! 🎉</span>';
+        status.innerHTML = '<span class="winner">Vous avez gagné ! 🎉</span>';
       } else {
-        status.innerHTML = '<span class="loser">You lose!</span>';
+        status.innerHTML = '<span class="loser">Vous avez perdu !</span>';
       }
       turnIndicator.textContent = '';
     }
@@ -107,19 +225,19 @@ joinBtn.onclick = () => {
 
     if (msg.type === 'queue_position') {
       if (msg.position === 0) {
-        queueInfo.textContent = 'You are next in line!';
+        queueInfo.textContent = 'Vous êtes le prochain !';
       } else {
-        queueInfo.textContent = `You are #${msg.position} in the queue`;
+        queueInfo.textContent = `Vous êtes #${msg.position} dans la file d'attente`;
       }
     }
 
     if (msg.type === 'queue_joined') {
-      status.textContent = 'Game in progress';
-      queueInfo.textContent = `You are #${msg.position} in the queue - waiting for your turn`;
+      status.textContent = 'Partie en cours';
+      queueInfo.textContent = `Vous êtes #${msg.position} dans la file d'attente - en attente de votre tour`;
     }
 
     if (msg.type === 'waiting_for_opponent') {
-      status.textContent = 'Waiting for new opponent...';
+      status.textContent = 'En attente d\'un nouvel adversaire...';
       opponentName = null;
       updatePlayerInfo();
       clearBoard();
@@ -128,7 +246,7 @@ joinBtn.onclick = () => {
     }
 
     if (msg.type === 'opponent_left') {
-      status.textContent = 'Opponent left. Waiting for new opponent...';
+      status.textContent = 'L\'adversaire a quitté. En attente d\'un nouvel adversaire...';
       opponentName = null;
       updatePlayerInfo();
       myTurn = false;
@@ -137,9 +255,94 @@ joinBtn.onclick = () => {
   };
 
   socket.onerror = error => {
-    console.error('WebSocket error:', error);
-    status.textContent = 'Connection error. Please refresh the page.';
+    console.error('Erreur WebSocket:', error);
+    status.textContent = 'Erreur de connexion. Veuillez rafraîchir la page.';
   };
+}
+
+function updateStats(stats, isOpponent = false) {
+  if (!stats) {
+    const elements = isOpponent ? 
+      { games: opponentGames, wins: opponentWins, winRate: opponentWinRate } :
+      { games: yourGames, wins: yourWins, winRate: yourWinRate };
+    
+    elements.games.textContent = '0';
+    elements.wins.textContent = '0';
+    elements.winRate.textContent = '0%';
+    return;
+  }
+  
+  const elements = isOpponent ? 
+    { games: opponentGames, wins: opponentWins, winRate: opponentWinRate } :
+    { games: yourGames, wins: yourWins, winRate: yourWinRate };
+  
+  elements.games.textContent = stats.total_games;
+  elements.wins.textContent = stats.wins;
+  elements.winRate.textContent = `${(stats.winrate * 100).toFixed(1)}%`;
+  
+  if (isOpponent) {
+    opponentStats = stats;
+  } else {
+    myStats = stats;
+  }
+}
+
+function updateTurnStatus() {
+  turnIndicator.textContent = myTurn ? 'C\'est votre tour !' : 'Tour de l\'adversaire';
+  turnIndicator.style.color = myTurn ? '#4CAF50' : '#f44336';
+  
+  // Mise en évidence du joueur actif
+  const yourCard = document.querySelector('.player-card.you');
+  const opponentCard = document.querySelector('.player-card.opponent');
+  yourCard.classList.toggle('active', myTurn);
+  opponentCard.classList.toggle('active', !myTurn);
+}
+
+function updatePlayerInfo() {
+  yourInfo.innerHTML = `
+    <div>${playerName}</div>
+    <div style="font-size: 1.2em; margin-top: 5px; font-weight: bold; color: ${myMark === 'X' ? '#2196F3' : '#f44336'}">${myMark || '?'}</div>
+  `;
+  
+  opponentInfo.innerHTML = opponentName ? `
+    <div>${opponentName}</div>
+    <div style="font-size: 1.2em; margin-top: 5px; font-weight: bold; color: ${myMark === 'X' ? '#f44336' : '#2196F3'}">${myMark === 'X' ? 'O' : 'X'}</div>
+  ` : 'En attente...';
+}
+
+async function updateRankings() {
+  try {
+    const response = await fetch('/api/rankings');
+    const rankings = await response.json();
+    
+    rankingsBody.innerHTML = rankings.map((player, index) => `
+      <tr>
+        <td>${index + 1}</td>
+        <td>${player.username}</td>
+        <td>${player.total_games}</td>
+        <td>${player.wins}</td>
+        <td>${(player.winrate * 100).toFixed(1)}%</td>
+      </tr>
+    `).join('');
+  } catch (error) {
+    console.error('Erreur lors de la récupération du classement:', error);
+  }
+}
+
+// Contrôles du modal de classement
+showRankingsBtn.onclick = () => {
+  updateRankings();
+  rankingsModal.style.display = 'block';
+};
+
+closeBtn.onclick = () => {
+  rankingsModal.style.display = 'none';
+};
+
+window.onclick = (event) => {
+  if (event.target === rankingsModal) {
+    rankingsModal.style.display = 'none';
+  }
 };
 
 function renderBoard() {
@@ -183,10 +386,10 @@ function showContinuePrompt() {
   container.classList.add('continue-prompt');
   
   const message = document.createElement('p');
-  message.textContent = 'Do you want to continue playing?';
+  message.textContent = 'Voulez-vous continuer à jouer ?';
   
   const continueBtn = document.createElement('button');
-  continueBtn.textContent = 'Continue';
+  continueBtn.textContent = 'Continuer';
   continueBtn.onclick = () => {
     continueBtn.disabled = true;
     leaveBtn.disabled = true;
@@ -195,7 +398,7 @@ function showContinuePrompt() {
   };
   
   const leaveBtn = document.createElement('button');
-  leaveBtn.textContent = 'Leave';
+  leaveBtn.textContent = 'Quitter';
   leaveBtn.onclick = () => {
     continueBtn.disabled = true;
     leaveBtn.disabled = true;

@@ -4,6 +4,7 @@ const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
 const path = require('path');
+const db = require('./database');
 
 const app = express();
 const server = http.createServer(app);
@@ -11,6 +12,38 @@ const wss = new WebSocket.Server({ server });
 
 // Configuration du dossier statique pour les fichiers clients
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.json());
+
+// Points d'accès pour l'authentification
+app.post('/api/register', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    const player = await db.registerPlayer(username, password);
+    res.json({ success: true, player });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    const player = await db.loginPlayer(username, password);
+    res.json({ success: true, player });
+  } catch (error) {
+    res.status(401).json({ success: false, error: error.message });
+  }
+});
+
+// Point d'accès REST pour le classement
+app.get('/api/rankings', async (req, res) => {
+  try {
+    const rankings = await db.getPlayerRankings();
+    res.json(rankings);
+  } catch (error) {
+    res.status(500).json({ error: 'Échec de la récupération du classement' });
+  }
+});
 
 // Démarrage du serveur sur le port 8080
 server.listen(8080, () => {
@@ -161,7 +194,7 @@ function checkAndReplacePlayer(game, leavingPlayer, isWinner) {
 
 // Gestion des connexions WebSocket
 wss.on('connection', function connection(ws) {
-  ws.on('message', function incoming(message) {
+  ws.on('message', async function incoming(message) {
     const data = JSON.parse(message);
     console.log('Message reçu:', data.type, 'de', ws.playerName);
 
@@ -169,6 +202,17 @@ wss.on('connection', function connection(ws) {
     if (data.type === 'set_name') {
       ws.playerName = data.name;
       console.log(`${data.name} connecté.`);
+
+      // Récupération ou création des statistiques du joueur
+      try {
+        const stats = await db.getPlayerStats(data.name);
+        ws.send(JSON.stringify({
+          type: 'stats_update',
+          stats: stats
+        }));
+      } catch (error) {
+        console.error('Erreur lors de la récupération des statistiques du joueur:', error);
+      }
 
       // Vérifie s'il y a des parties actives
       const activeGames = games.size > 0;
@@ -249,6 +293,59 @@ wss.on('connection', function connection(ws) {
 
         player1.send(JSON.stringify(result));
         player2.send(JSON.stringify(result));
+
+        // Mise à jour des statistiques des joueurs
+        try {
+          if (winner) {
+            const winningPlayer = (game.player1GoesFirst && winner === 'X') || (!game.player1GoesFirst && winner === 'O')
+              ? game.player1
+              : game.player2;
+            const losingPlayer = winningPlayer === game.player1 ? game.player2 : game.player1;
+
+            await Promise.all([
+              db.updatePlayerStats(winningPlayer.playerName, 'win'),
+              db.updatePlayerStats(losingPlayer.playerName, 'loss')
+            ]);
+
+            // Envoi des statistiques mises à jour aux deux joueurs
+            const [winnerStats, loserStats] = await Promise.all([
+              db.getPlayerStats(winningPlayer.playerName),
+              db.getPlayerStats(losingPlayer.playerName)
+            ]);
+
+            winningPlayer.send(JSON.stringify({
+              type: 'stats_update',
+              stats: winnerStats
+            }));
+            losingPlayer.send(JSON.stringify({
+              type: 'stats_update',
+              stats: loserStats
+            }));
+          } else {
+            // Match nul
+            await Promise.all([
+              db.updatePlayerStats(game.player1.playerName, 'draw'),
+              db.updatePlayerStats(game.player2.playerName, 'draw')
+            ]);
+
+            // Envoi des statistiques mises à jour aux deux joueurs
+            const [player1Stats, player2Stats] = await Promise.all([
+              db.getPlayerStats(game.player1.playerName),
+              db.getPlayerStats(game.player2.playerName)
+            ]);
+
+            game.player1.send(JSON.stringify({
+              type: 'stats_update',
+              stats: player1Stats
+            }));
+            game.player2.send(JSON.stringify({
+              type: 'stats_update',
+              stats: player2Stats
+            }));
+          }
+        } catch (error) {
+          console.error('Erreur lors de la mise à jour des statistiques du joueur:', error);
+        }
 
         if (winner) {
           // Détermine le gagnant en fonction de qui a commencé

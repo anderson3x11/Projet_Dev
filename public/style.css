@@ -15,11 +15,79 @@ body {
 h1 {
   color: #1a1a1a;
   margin-bottom: 30px;
+  text-align: center;
+}
+
+h2 {
+  color: #333;
+  margin-bottom: 20px;
+  text-align: center;
 }
 
 .setup-panel {
   text-align: center;
   padding: 20px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.auth-form {
+  margin-bottom: 20px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.form-group input {
+  padding: 12px;
+  font-size: 16px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #2196F3;
+  box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.1);
+}
+
+.auth-form button {
+  width: 100%;
+  padding: 12px;
+  font-size: 16px;
+  background: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.auth-form button:hover {
+  background: #45a049;
+}
+
+.auth-form p {
+  margin-top: 15px;
+  color: #666;
+}
+
+.auth-form a {
+  color: #2196F3;
+  text-decoration: none;
+}
+
+.auth-form a:hover {
+  text-decoration: underline;
 }
 
 .join-form {
@@ -52,11 +120,70 @@ h1 {
   background: #45a049;
 }
 
+.game-container {
+  display: flex;
+  gap: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
 .game-panel {
+  flex: 1;
   background: white;
   border-radius: 8px;
   padding: 20px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.rankings-panel {
+  width: 300px;
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  height: fit-content;
+}
+
+.rankings-panel h2 {
+  margin-top: 0;
+  color: #333;
+  font-size: 1.5em;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #f0f2f5;
+}
+
+#rankingsTable {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
+}
+
+#rankingsTable th,
+#rankingsTable td {
+  padding: 10px;
+  text-align: left;
+  border-bottom: 1px solid #ddd;
+}
+
+#rankingsTable th {
+  background-color: #f5f5f5;
+  font-weight: bold;
+}
+
+#rankingsTable tr:hover {
+  background-color: #f9f9f9;
+}
+
+#rankingsTable tr:nth-child(1) {
+  background-color: #fff3e0;
+}
+
+#rankingsTable tr:nth-child(2) {
+  background-color: #fafafa;
+}
+
+#rankingsTable tr:nth-child(3) {
+  background-color: #fff8e1;
 }
 
 .game-info {
@@ -172,4 +299,97 @@ h1 {
 .draw {
   color: #ff9800;
   font-weight: bold;
+}
+
+.player-stats {
+  margin-top: 10px;
+  font-size: 0.9em;
+  color: #666;
+}
+
+.player-stats div {
+  margin: 2px 0;
+}
+
+.button-group {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.rankings-button,
+.logout-button {
+  padding: 10px 20px;
+  font-size: 14px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.rankings-button {
+  background: #2196F3;
+  color: white;
+}
+
+.rankings-button:hover {
+  background: #1976D2;
+}
+
+.logout-button {
+  background: #f44336;
+  color: white;
+}
+
+.logout-button:hover {
+  background: #d32f2f;
+}
+
+/* Modal Styles */
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0,0,0,0.4);
+}
+
+.modal-content {
+  background-color: #fefefe;
+  margin: 15% auto;
+  padding: 20px;
+  border: 1px solid #888;
+  width: 80%;
+  max-width: 600px;
+  border-radius: 8px;
+  position: relative;
+}
+
+.close {
+  position: absolute;
+  right: 20px;
+  top: 10px;
+  color: #aaa;
+  font-size: 28px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.close:hover {
+  color: #666;
+}
+
+/* Responsive layout */
+@media (max-width: 1024px) {
+  .game-container {
+    flex-direction: column;
+  }
+  
+  .rankings-panel {
+    width: auto;
+  }
 }
