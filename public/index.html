@@ -11,7 +11,7 @@
     <div class="setup-panel" id="setupPanel">
       <h1>Tic Tac Toe</h1>
       
-      <!-- Login Form -->
+      <!-- Login -->
       <div class="auth-form" id="loginForm">
         <h2>Login</h2>
         <div class="form-group">
@@ -22,7 +22,7 @@
         <p>Don't have an account? <a href="#" id="showRegisterBtn">Register</a></p>
       </div>
 
-      <!-- Registration Form -->
+      <!-- Register -->
       <div class="auth-form" id="registerForm" style="display: none;">
         <h2>Register</h2>
         <div class="form-group">
@@ -42,9 +42,9 @@
             <h3>You</h3>
             <div id="yourInfo">Waiting...</div>
             <div class="player-stats">
-              <div>Games: <span id="yourGames">0</span></div>
-              <div>Wins: <span id="yourWins">0</span></div>
-              <div>Win Rate: <span id="yourWinRate">0%</span></div>
+              <div><span id="yourGames"></span></div>
+              <div><span id="yourWins"></span></div>
+              <div><span id="yourWinRate"></span></div>
             </div>
           </div>
           <div class="vs">VS</div>
@@ -52,9 +52,9 @@
             <h3>Opponent</h3>
             <div id="opponentInfo">Waiting...</div>
             <div class="player-stats">
-              <div>Games: <span id="opponentGames">0</span></div>
-              <div>Wins: <span id="opponentWins">0</span></div>
-              <div>Win Rate: <span id="opponentWinRate">0%</span></div>
+              <div><span id="opponentGames"></span></div>
+              <div><span id="opponentWins"></span></div>
+              <div><span id="opponentWinRate"></span></div>
             </div>
           </div>
         </div>
@@ -74,7 +74,7 @@
       </div>
     </div>
 
-    <!-- Rankings Modal -->
+    <!-- Ranking -->
     <div id="rankingsModal" class="modal">
       <div class="modal-content">
         <span class="close">&times;</span>

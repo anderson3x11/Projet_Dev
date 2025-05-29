@@ -66,7 +66,7 @@ function addToQueue(ws) {
 }
 
 // Démarre une nouvelle partie entre deux joueurs
-function startGame(player1, player2) {
+async function startGame(player1, player2) {
   const gameId = Date.now();
   console.log('Création d\'une nouvelle partie avec l\'ID:', gameId);
 
@@ -93,6 +93,34 @@ function startGame(player1, player2) {
   player1.gameId = gameId;
   player2.gameId = gameId;
 
+  // Récupération des statistiques des deux joueurs
+  try {
+    const [player1Stats, player2Stats] = await Promise.all([
+      db.getPlayerStats(player1.playerName),
+      db.getPlayerStats(player2.playerName)
+    ]);
+
+    // Envoi des statistiques aux deux joueurs
+    player1.send(JSON.stringify({
+      type: 'stats_update',
+      stats: player1Stats
+    }));
+    player1.send(JSON.stringify({
+      type: 'stats_update',
+      stats: player2Stats
+    }));
+    player2.send(JSON.stringify({
+      type: 'stats_update',
+      stats: player2Stats
+    }));
+    player2.send(JSON.stringify({
+      type: 'stats_update',
+      stats: player1Stats
+    }));
+  } catch (error) {
+    console.error('Erreur lors de la récupération des statistiques:', error);
+  }
+
   // Envoi des informations de départ aux joueurs
   firstPlayer.send(JSON.stringify({ 
     type: 'start', 
@@ -107,7 +135,7 @@ function startGame(player1, player2) {
 }
 
 // Remplace un joueur par un nouveau dans une partie existante
-function replacePlayer(oldPlayer, newPlayer, gameId) {
+async function replacePlayer(oldPlayer, newPlayer, gameId) {
   console.log('Remplacement du joueur:', oldPlayer.playerName, 'par', newPlayer.playerName);
   console.log('ID de la partie pour le remplacement:', gameId);
   
@@ -140,6 +168,34 @@ function replacePlayer(oldPlayer, newPlayer, gameId) {
   console.log('- ID du Joueur1:', game.player1.gameId);
   console.log('- ID du Joueur2:', game.player2.gameId);
 
+  // Récupération des statistiques des deux joueurs
+  try {
+    const [newPlayerStats, otherPlayerStats] = await Promise.all([
+      db.getPlayerStats(newPlayer.playerName),
+      db.getPlayerStats(otherPlayer.playerName)
+    ]);
+
+    // Envoi des statistiques aux deux joueurs
+    newPlayer.send(JSON.stringify({
+      type: 'stats_update',
+      stats: newPlayerStats
+    }));
+    newPlayer.send(JSON.stringify({
+      type: 'stats_update',
+      stats: otherPlayerStats
+    }));
+    otherPlayer.send(JSON.stringify({
+      type: 'stats_update',
+      stats: otherPlayerStats
+    }));
+    otherPlayer.send(JSON.stringify({
+      type: 'stats_update',
+      stats: newPlayerStats
+    }));
+  } catch (error) {
+    console.error('Erreur lors de la récupération des statistiques:', error);
+  }
+
   // Réinitialisation du plateau
   game.board = Array(9).fill(null);
   game.turn = 'X';
@@ -170,10 +226,10 @@ function replacePlayer(oldPlayer, newPlayer, gameId) {
 }
 
 // Gère le remplacement d'un joueur et la mise à jour de la file d'attente
-function checkAndReplacePlayer(game, leavingPlayer, isWinner) {
+async function checkAndReplacePlayer(game, leavingPlayer, isWinner) {
   if (playerQueue.length > 0) {
     const newPlayer = playerQueue.shift();
-    replacePlayer(leavingPlayer, newPlayer, game.gameId);
+    await replacePlayer(leavingPlayer, newPlayer, game.gameId);
     
     // Mise à jour des positions dans la file d'attente
     playerQueue.forEach((player, index) => {
@@ -224,7 +280,7 @@ wss.on('connection', function connection(ws) {
         // S'il y a des parties actives, ajoute le nouveau joueur à la file d'attente
         addToQueue(ws);
       } else if (waitingPlayer) {
-        startGame(waitingPlayer, ws);
+        await startGame(waitingPlayer, ws);
         waitingPlayer = null;
       }
     }
@@ -424,6 +480,19 @@ wss.on('connection', function connection(ws) {
       }
     }
 
+    // Gestion des demandes de statistiques
+    if (data.type === 'request_stats') {
+      try {
+        const stats = await db.getPlayerStats(data.username);
+        ws.send(JSON.stringify({
+          type: 'stats_update',
+          stats: stats
+        }));
+      } catch (error) {
+        console.error('Erreur lors de la récupération des statistiques du joueur:', error);
+      }
+    }
+
     // Gestion des choix de continuation
     if (data.type === 'continue_choice') {
       const gameId = ws.gameId;
@@ -574,7 +643,7 @@ wss.on('connection', function connection(ws) {
           console.log('Taille de la file d\'attente avant remplacement:', playerQueue.length);
           
           opponent.opponent = null;
-          const updatedGame = replacePlayer(opponent, newPlayer, gameId);
+          const updatedGame = await replacePlayer(opponent, newPlayer, gameId);
           
           if (!updatedGame) {
             console.error('Échec du remplacement du joueur');
@@ -597,7 +666,7 @@ wss.on('connection', function connection(ws) {
         // Si le gagnant choisit de partir, l'ajoute aussi à la file d'attente
         ws.opponent = null;
         addToQueue(ws);
-        checkAndReplacePlayer(game, ws, true);
+        await checkAndReplacePlayer(game, ws, true);
       }
     }
 
@@ -612,7 +681,7 @@ wss.on('connection', function connection(ws) {
   });
 
   // Gestion de la déconnexion d'un joueur
-  ws.on('close', () => {
+  ws.on('close', async () => {
     // Retire le joueur de la file d'attente s'il y était
     const queueIndex = playerQueue.indexOf(ws);
     if (queueIndex !== -1) {
@@ -636,7 +705,7 @@ wss.on('connection', function connection(ws) {
         ws.opponent.opponent = null; // Efface d'abord la référence de l'adversaire
         ws.opponent = null; // Efface la référence de ce joueur
       }
-      checkAndReplacePlayer(game, ws, false);
+      await checkAndReplacePlayer(game, ws, false);
     }
   });
 });

@@ -195,6 +195,12 @@ function connectToGame() {
       renderBoard();
       queueInfo.textContent = '';
       updateTurnStatus();
+
+      // Request opponent's stats
+      socket.send(JSON.stringify({
+        type: 'request_stats',
+        username: opponentName
+      }));
     }
 
     if (msg.type === 'move') {
@@ -276,9 +282,21 @@ function updateStats(stats, isOpponent = false) {
     { games: opponentGames, wins: opponentWins, winRate: opponentWinRate } :
     { games: yourGames, wins: yourWins, winRate: yourWinRate };
   
-  elements.games.textContent = stats.total_games;
-  elements.wins.textContent = stats.wins;
-  elements.winRate.textContent = `${(stats.winrate * 100).toFixed(1)}%`;
+  // Add stat labels and values structure
+  elements.games.innerHTML = `<span class="stat-label">Games:</span> <span class="stat-value total-games">${stats.total_games}</span>`;
+  elements.wins.innerHTML = `<span class="stat-label">Wins:</span> <span class="stat-value wins">${stats.wins}</span>`;
+  
+  // Calculate win rate and determine prestige class
+  const winRate = stats.winrate * 100;
+  let prestigeClass = 'winrate-novice';
+  
+  if (winRate >= 85) prestigeClass = 'winrate-grandmaster';
+  else if (winRate >= 75) prestigeClass = 'winrate-master';
+  else if (winRate >= 65) prestigeClass = 'winrate-expert';
+  else if (winRate >= 55) prestigeClass = 'winrate-advanced';
+  else if (winRate >= 45) prestigeClass = 'winrate-intermediate';
+  
+  elements.winRate.innerHTML = `<span class="stat-label">Win Rate:</span> <span class="stat-value win-rate ${prestigeClass}">${winRate.toFixed(1)}%</span>`;
   
   if (isOpponent) {
     opponentStats = stats;

@@ -304,11 +304,105 @@ h2 {
 .player-stats {
   margin-top: 10px;
   font-size: 0.9em;
-  color: #666;
+  padding: 8px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.03);
 }
 
 .player-stats div {
-  margin: 2px 0;
+  margin: 4px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.winrate-novice {
+  color: #2196F3;
+  font-weight: 500;
+}
+
+.winrate-intermediate {
+  color: #673AB7;
+  font-weight: 600;
+}
+
+.winrate-advanced {
+  color: #9C27B0;
+  font-weight: 700;
+}
+
+.winrate-expert {
+  color: #E91E63;
+  font-weight: 700;
+  text-shadow: 0 0 2px rgba(233, 30, 99, 0.2);
+}
+
+.winrate-master {
+  color: #f44336;
+  font-weight: 800;
+  text-shadow: 0 0 3px rgba(244, 67, 54, 0.3);
+}
+
+.winrate-grandmaster {
+  color: #D32F2F;
+  font-weight: 800;
+  text-shadow: 0 0 4px rgba(211, 47, 47, 0.3);
+}
+
+#rankingsTable tr:nth-child(1) {
+  background: linear-gradient(to right, #FFD700, #FFF5D5);
+}
+
+#rankingsTable tr:nth-child(2) {
+  background: linear-gradient(to right, #C0C0C0, #F5F5F5);
+}
+
+#rankingsTable tr:nth-child(3) {
+  background: linear-gradient(to right, #CD7F32, #FFE9D6);
+}
+
+#rankingsTable tr:nth-child(n+4) {
+  background: white;
+}
+
+#rankingsTable tr:nth-child(1) td {
+  font-weight: 700;
+  color: #5C4D00;
+}
+
+#rankingsTable tr:nth-child(2) td {
+  font-weight: 600;
+  color: #494949;
+}
+
+#rankingsTable tr:nth-child(3) td {
+  font-weight: 600;
+  color: #614126;
+}
+
+.player-stats .stat-label {
+  color: #666;
+  font-weight: normal;
+}
+
+.player-stats .stat-value {
+  font-weight: 600;
+  margin-left: 8px;
+}
+
+.total-games {
+  color: #1976D2;
+}
+
+.wins {
+  color: #4CAF50;
+}
+
+.win-rate {
+  font-size: 1.1em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.05);
 }
 
 .button-group {
@@ -346,7 +440,6 @@ h2 {
   background: #d32f2f;
 }
 
-/* Modal Styles */
 .modal {
   display: none;
   position: fixed;
@@ -383,7 +476,6 @@ h2 {
   color: #666;
 }
 
-/* Responsive layout */
 @media (max-width: 1024px) {
   .game-container {
     flex-direction: column;
