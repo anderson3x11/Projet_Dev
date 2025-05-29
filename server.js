@@ -45,6 +45,28 @@ app.get('/api/rankings', async (req, res) => {
   }
 });
 
+// Point d'accès pour les statistiques d'un joueur
+app.get('/api/stats/:username', async (req, res) => {
+  try {
+    const stats = await db.getPlayerStats(req.params.username);
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ error: 'Échec de la récupération des statistiques' });
+  }
+});
+
+// Point d'accès pour la mise à jour des statistiques (pour les parties contre le bot)
+app.post('/api/update-stats', async (req, res) => {
+  try {
+    const { username, result } = req.body;
+    await db.updatePlayerStats(username, result);
+    const updatedStats = await db.getPlayerStats(username);
+    res.json(updatedStats);
+  } catch (error) {
+    res.status(500).json({ error: 'Échec de la mise à jour des statistiques' });
+  }
+});
+
 // Démarrage du serveur sur le port 8080
 server.listen(8080, () => {
   console.log('Serveur démarré sur http://localhost:8080');

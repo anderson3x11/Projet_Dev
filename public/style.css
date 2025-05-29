@@ -485,3 +485,59 @@ h2 {
     width: auto;
   }
 }
+
+/* Game Mode Selection Styles */
+.game-mode-selection {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  margin: 20px 0;
+}
+
+.mode-button {
+  padding: 12px 24px;
+  font-size: 16px;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+#findMatchBtn {
+  background: #2196F3;
+  color: white;
+  box-shadow: 0 4px 6px rgba(33, 150, 243, 0.2);
+}
+
+#findMatchBtn:hover {
+  background: #1976D2;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 8px rgba(33, 150, 243, 0.3);
+}
+
+#playBotBtn {
+  background: #4CAF50;
+  color: white;
+  box-shadow: 0 4px 6px rgba(76, 175, 80, 0.2);
+}
+
+#playBotBtn:hover {
+  background: #388E3C;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 8px rgba(76, 175, 80, 0.3);
+}
+
+.mode-button:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.mode-button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}

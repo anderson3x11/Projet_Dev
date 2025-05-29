@@ -7,6 +7,7 @@ let playerName;
 let opponentName;
 let myStats = null;
 let opponentStats = null;
+let isPlayingBot = false;
 
 // Récupération des éléments du DOM
 const status = document.getElementById('status');
@@ -17,6 +18,9 @@ const turnIndicator = document.getElementById('turnIndicator');
 const yourInfo = document.getElementById('yourInfo');
 const opponentInfo = document.getElementById('opponentInfo');
 const queueInfo = document.getElementById('queueInfo');
+const gameModeSelection = document.getElementById('gameModeSelection');
+const findMatchBtn = document.getElementById('findMatchBtn');
+const playBotBtn = document.getElementById('playBotBtn');
 
 // Éléments d'authentification
 const loginForm = document.getElementById('loginForm');
@@ -123,6 +127,8 @@ loginBtn.onclick = async () => {
       myStats = data.player;
       setupPanel.style.display = 'none';
       gamePanel.style.display = 'block';
+      gameModeSelection.style.display = 'flex';
+      board.style.display = 'none';
       updatePlayerInfo();
       updateStats(myStats);
       connectToGame();
@@ -369,13 +375,24 @@ function renderBoard() {
   for (let i = 0; i < 9; i++) {
     const cell = document.createElement('div');
     cell.classList.add('cell');
-    cell.onclick = () => {
-      if (!cell.textContent && myTurn) {
-        socket.send(JSON.stringify({ type: 'move', index: i }));
-      }
-    };
+    cell.onclick = () => handleCellClick(i);
     board.appendChild(cell);
     cells.push(cell);
+  }
+}
+
+function handleCellClick(index) {
+  // Check if cell is already taken or it's not player's turn
+  if (cells[index].textContent || !myTurn) {
+    return;
+  }
+
+  if (isPlayingBot) {
+    // Handle bot game move
+    placeMark(index, myMark);
+  } else {
+    // Handle multiplayer game move
+    socket.send(JSON.stringify({ type: 'move', index: index }));
   }
 }
 
@@ -391,8 +408,298 @@ function placeMark(index, mark) {
   if (!cell.textContent) {
     cell.textContent = mark;
     cell.classList.add('taken', mark);
+
+    if (isPlayingBot) {
+      // Check if game is over after player's move
+      const boardState = getBoardState();
+      const winner = checkWinner(boardState);
+      
+      if (winner || isBoardFull()) {
+        handleGameOver();
+      } else {
+        // Bot's turn
+        myTurn = false;
+        updateTurnStatus();
+        setTimeout(makeBotMove, 1000);
+      }
+    }
   }
 }
+
+function getBoardState() {
+  return cells.map(cell => cell.textContent || null);
+}
+
+function isBoardFull() {
+  return getBoardState().every(cell => cell !== null);
+}
+
+function makeBotMove() {
+  if (!isPlayingBot || myTurn) return;  // Add myTurn check to prevent multiple bot moves
+
+  const board = getBoardState();
+  const availableMoves = board.reduce((moves, cell, index) => {
+    if (cell === null) moves.push(index);
+    return moves;
+  }, []);
+
+  // Simple bot strategy for normal difficulty
+  let moveIndex;
+
+  // First, check if bot can win
+  moveIndex = findWinningMove(board, 'O');
+  
+  // Then, block player's winning move
+  if (moveIndex === -1) {
+    moveIndex = findWinningMove(board, 'X');
+  }
+  
+  // If no winning moves, try to take center
+  if (moveIndex === -1 && board[4] === null) {
+    moveIndex = 4;
+  }
+  
+  // If center taken, try corners
+  if (moveIndex === -1) {
+    const corners = [0, 2, 6, 8].filter(i => board[i] === null);
+    if (corners.length > 0) {
+      moveIndex = corners[Math.floor(Math.random() * corners.length)];
+    }
+  }
+  
+  // If no special moves, take random available spot
+  if (moveIndex === -1 && availableMoves.length > 0) {
+    moveIndex = availableMoves[Math.floor(Math.random() * availableMoves.length)];
+  }
+
+  if (moveIndex !== -1) {
+    placeMark(moveIndex, 'O');
+    myTurn = true;  // Give turn back to player
+    updateTurnStatus();
+    
+    // Check if game is over after bot's move
+    const boardState = getBoardState();
+    const winner = checkWinner(boardState);
+    
+    if (winner || isBoardFull()) {
+      handleGameOver();
+    }
+  }
+}
+
+function findWinningMove(board, mark) {
+  const wins = [
+    [0,1,2], [3,4,5], [6,7,8], // Rows
+    [0,3,6], [1,4,7], [2,5,8], // Columns
+    [0,4,8], [2,4,6] // Diagonals
+  ];
+
+  for (const [a, b, c] of wins) {
+    const line = [board[a], board[b], board[c]];
+    const markCount = line.filter(cell => cell === mark).length;
+    const nullCount = line.filter(cell => cell === null).length;
+    
+    if (markCount === 2 && nullCount === 1) {
+      const emptyIndex = [a, b, c][line.indexOf(null)];
+      return emptyIndex;
+    }
+  }
+  
+  return -1;
+}
+
+function handleGameOver() {
+  const board = getBoardState();
+  const winner = checkWinner(board);
+  
+  if (winner) {
+    if (winner === myMark) {
+      status.innerHTML = '<span class="winner">Vous avez gagné ! 🎉</span>';
+    } else {
+      status.innerHTML = '<span class="loser">Le Bot a gagné !</span>';
+    }
+  } else if (isBoardFull()) {
+    status.innerHTML = '<span class="draw">Match nul !</span>';
+  }
+
+  // Update stats
+  if (winner === myMark) {
+    updatePlayerStats('win');
+  } else if (winner === 'O') {
+    updatePlayerStats('loss');
+  } else {
+    updatePlayerStats('draw');
+  }
+
+  // Show rematch UI
+  showRematchUI();
+}
+
+function showRematchUI() {
+  // Remove existing rematch UI if it exists
+  const existingRematch = document.querySelector('.rematch-ui');
+  if (existingRematch) {
+    existingRematch.remove();
+  }
+
+  // Create rematch UI
+  const rematchUI = document.createElement('div');
+  rematchUI.className = 'rematch-ui';
+  
+  const message = document.createElement('p');
+  message.textContent = 'Voulez-vous jouer une autre partie ?';
+  
+  const buttonContainer = document.createElement('div');
+  buttonContainer.className = 'rematch-buttons';
+  
+  const playAgainBtn = document.createElement('button');
+  playAgainBtn.textContent = 'Rejouer';
+  playAgainBtn.className = 'rematch-button play-again';
+  playAgainBtn.onclick = () => {
+    rematchUI.remove();
+    resetBotGame();
+  };
+  
+  const exitBtn = document.createElement('button');
+  exitBtn.textContent = 'Quitter';
+  exitBtn.className = 'rematch-button exit';
+  exitBtn.onclick = () => {
+    rematchUI.remove();
+    resetGame();
+    gameModeSelection.style.display = 'flex';
+    board.style.display = 'none';
+  };
+  
+  buttonContainer.appendChild(playAgainBtn);
+  buttonContainer.appendChild(exitBtn);
+  rematchUI.appendChild(message);
+  rematchUI.appendChild(buttonContainer);
+  
+  // Add the rematch UI below the board
+  board.parentNode.insertBefore(rematchUI, board.nextSibling);
+}
+
+// Add styles for rematch UI
+const rematchStyles = document.createElement('style');
+rematchStyles.textContent = `
+  .rematch-ui {
+    text-align: center;
+    margin-top: 20px;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+
+  .rematch-ui p {
+    font-size: 18px;
+    margin-bottom: 15px;
+    color: #333;
+  }
+
+  .rematch-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+  }
+
+  .rematch-button {
+    padding: 10px 25px;
+    font-size: 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 600;
+  }
+
+  .rematch-button.play-again {
+    background: #4CAF50;
+    color: white;
+  }
+
+  .rematch-button.play-again:hover {
+    background: #388E3C;
+    transform: translateY(-2px);
+  }
+
+  .rematch-button.exit {
+    background: #f44336;
+    color: white;
+  }
+
+  .rematch-button.exit:hover {
+    background: #d32f2f;
+    transform: translateY(-2px);
+  }
+
+  .rematch-button:active {
+    transform: translateY(0);
+  }
+`;
+document.head.appendChild(rematchStyles);
+
+function resetBotGame() {
+  clearBoard();
+  myTurn = true;
+  myMark = 'X';
+  updateTurnStatus();
+  status.textContent = 'Partie contre le Bot';
+}
+
+async function updatePlayerStats(result) {
+  try {
+    await fetch('/api/update-stats', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        username: playerName,
+        result: result
+      })
+    });
+    
+    const response = await fetch(`/api/stats/${playerName}`);
+    const stats = await response.json();
+    updateStats(stats);
+  } catch (error) {
+    console.error('Error updating stats:', error);
+  }
+}
+
+// Game mode selection handlers
+findMatchBtn.onclick = () => {
+  isPlayingBot = false;
+  gameModeSelection.style.display = 'none';
+  board.style.display = 'grid';
+  socket.send(JSON.stringify({ type: 'find_match' }));
+  status.textContent = 'Recherche d\'un adversaire...';
+};
+
+playBotBtn.onclick = () => {
+  isPlayingBot = true;
+  gameModeSelection.style.display = 'none';
+  board.style.display = 'grid';
+  opponentName = 'Bot';
+  myMark = 'X';  // Player always starts as X against bot
+  myTurn = true;
+  updatePlayerInfo();
+  renderBoard();
+  updateTurnStatus();
+  status.textContent = 'Partie contre le Bot';
+  
+  // Set up bot stats
+  const botStats = {
+    username: 'Bot',
+    total_games: 999,
+    wins: 650,
+    losses: 300,
+    draws: 49,
+    winrate: 0.65
+  };
+  updateStats(botStats, true);
+};
 
 function showContinuePrompt() {
   const existingPrompt = document.querySelector('.continue-prompt');
@@ -468,3 +775,19 @@ style.textContent = `
   }
 `;
 document.head.appendChild(style);
+
+// Add checkWinner function if it doesn't exist
+function checkWinner(board) {
+  const wins = [
+    [0,1,2], [3,4,5], [6,7,8], // Rows
+    [0,3,6], [1,4,7], [2,5,8], // Columns
+    [0,4,8], [2,4,6] // Diagonals
+  ];
+  
+  for (const [a, b, c] of wins) {
+    if (board[a] && board[a] === board[b] && board[b] === board[c]) {
+      return board[a];
+    }
+  }
+  return null;
+}
