@@ -12,7 +12,7 @@ const db = new sqlite3.Database(path.join(__dirname, 'tictactoe.db'), (err) => {
     }
 });
 
-// Fonction de hachage du mot de passe (même que dans database.js)
+// Fonction de hachage du mot de passe (identique à database.js)
 function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
     const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
     return { hash, salt };

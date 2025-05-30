@@ -11,7 +11,7 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-// Get local IP addresses
+// Récupération des adresses IP locales
 function getLocalIPs() {
   const interfaces = os.networkInterfaces();
   const addresses = [];
@@ -31,7 +31,21 @@ function getLocalIPs() {
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
-// Add endpoint to get server info
+// Ajout des en-têtes CORS
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  next();
+});
+
+// Ajout de la gestion des erreurs pour les opérations de base de données
+app.use((err, req, res, next) => {
+  console.error('Erreur:', err);
+  res.status(500).json({ error: 'Erreur interne du serveur' });
+});
+
+// Point d'accès pour obtenir les informations du serveur
 app.get('/api/server-info', (req, res) => {
   res.json({
     addresses: getLocalIPs(),
@@ -94,24 +108,41 @@ app.post('/api/update-stats', async (req, res) => {
 
 // Démarrage du serveur sur le port 8080 et toutes les interfaces
 function startServer() {
-  server.listen(8080, '0.0.0.0', () => {
-    const addresses = getLocalIPs();
-    console.log('Serveur démarré sur:');
-    console.log('- Local: http://localhost:8080');
-    addresses.forEach(addr => {
-      console.log(`- Network: http://${addr}:8080`);
-    });
+  return new Promise((resolve, reject) => {
+    try {
+      server.listen(8080, '0.0.0.0', () => {
+        const addresses = getLocalIPs();
+        console.log('Serveur démarré sur:');
+        console.log('- Local: http://localhost:8080');
+        addresses.forEach(addr => {
+          console.log(`- Réseau: http://${addr}:8080`);
+        });
+        resolve(server);
+      });
+
+      server.on('error', (error) => {
+        console.error('Erreur serveur:', error);
+        reject(error);
+      });
+
+      // Gestion des erreurs WebSocket
+      wss.on('error', (error) => {
+        console.error('Erreur WebSocket:', error);
+      });
+
+    } catch (error) {
+      console.error('Échec du démarrage du serveur:', error);
+      reject(error);
+    }
   });
-  
-  return server;
 }
 
-// Start the server if running directly
+// Démarrer le serveur si exécuté directement
 if (require.main === module) {
-  startServer();
+  startServer().catch(console.error);
 }
 
-// Export for use in Electron
+// Export pour utilisation dans Electron
 module.exports = startServer();
 
 // Variables globales pour la gestion des joueurs et des parties
@@ -334,7 +365,7 @@ wss.on('connection', function connection(ws) {
         console.error('Erreur lors de la récupération des statistiques du joueur:', error);
       }
 
-      // Only auto-match if explicitly requested
+      // Matchmaking automatique uniquement si explicitement demandé
       if (data.autoMatch !== false) {
         // Vérifie s'il y a des parties actives
         const activeGames = games.size > 0;
@@ -356,7 +387,7 @@ wss.on('connection', function connection(ws) {
     if (data.type === 'find_match') {
       console.log(`${ws.playerName} recherche une partie`);
       
-      // Remove from any existing queue first
+      // Retire d'abord de la file d'attente existante
       const queueIndex = playerQueue.indexOf(ws);
       if (queueIndex !== -1) {
         playerQueue.splice(queueIndex, 1);

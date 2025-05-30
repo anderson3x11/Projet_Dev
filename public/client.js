@@ -1,4 +1,7 @@
 // === public/client.js ===
+const BASE_URL = window.location.protocol === 'file:' ? 'http://localhost:8080' : '';
+const WS_URL = window.location.protocol === 'file:' ? 'ws://localhost:8080' : `ws://${window.location.host}`;
+
 let socket;
 let myTurn = false;
 let myMark;
@@ -9,6 +12,7 @@ let myStats = null;
 let opponentStats = null;
 let isPlayingBot = false;
 let currentServer = null;
+let currentBaseUrl = BASE_URL; // Track current server base URL
 
 // Server connection elements
 const serverPanel = document.getElementById('serverPanel');
@@ -63,54 +67,55 @@ gamePanel.style.display = 'none';
 // Initialize server discovery
 async function discoverServer() {
   try {
-    const response = await fetch('/api/server-info');
+    // In client mode, show the connection panel immediately
+    if (window.location.protocol === 'file:') {
+      serverPanel.style.display = 'block';
+      serverList.innerHTML = '';
+      return;
+    }
+
+    const response = await fetch(`${BASE_URL}/api/server-info`);
     const serverInfo = await response.json();
     
     // First try the current hostname
-    const currentHost = window.location.host;
+    const currentHost = window.location.protocol === 'file:' ? serverInfo.addresses[0] : window.location.host;
     if (await tryConnection(currentHost)) {
       return;
     }
 
-    // Then try localhost
-    if (await tryConnection('localhost:' + serverInfo.port)) {
-      return;
-    }
-
-    // Try all network addresses
-    for (const addr of serverInfo.addresses) {
-      if (await tryConnection(addr + ':' + serverInfo.port)) {
-        return;
-      }
-    }
-
-    // If all automatic attempts fail, show manual connection panel
+    // Show manual connection panel
     serverPanel.style.display = 'block';
     serverList.innerHTML = '';
     
     // Add all available servers to the list
-    addServerToList('localhost:' + serverInfo.port, true);
     serverInfo.addresses.forEach(addr => {
-      addServerToList(addr + ':' + serverInfo.port);
+      addServerToList(`${addr}:${serverInfo.port}`);
     });
   } catch (error) {
     console.error('Error discovering server:', error);
+    // In case of error, show the connection panel
     serverPanel.style.display = 'block';
+    serverList.innerHTML = '';
   }
 }
 
 async function tryConnection(address) {
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsAddress = `${protocol}//${address}`;
-  
   try {
-    const ws = new WebSocket(wsAddress);
+    // First try HTTP connection to verify server is reachable
+    const response = await fetch(`http://${address}/api/server-info`);
+    if (!response.ok) {
+      throw new Error('Server not responding');
+    }
+
+    // If HTTP connection works, try WebSocket
+    const ws = new WebSocket(`ws://${address}`);
     
     return new Promise((resolve) => {
       ws.onopen = () => {
         console.log('Connected to server:', address);
         socket = ws;
         currentServer = address;
+        currentBaseUrl = `http://${address}`; // Update the base URL for API calls
         serverPanel.style.display = 'none';
         setupPanel.style.display = 'block';
         status.textContent = '';
@@ -118,12 +123,22 @@ async function tryConnection(address) {
         resolve(true);
       };
       
-      ws.onerror = () => {
+      ws.onerror = (error) => {
+        console.error('WebSocket connection error:', error);
         ws.close();
         resolve(false);
       };
+
+      // Add timeout to avoid hanging
+      setTimeout(() => {
+        if (ws.readyState !== WebSocket.OPEN) {
+          ws.close();
+          resolve(false);
+        }
+      }, 5000);
     });
-  } catch {
+  } catch (error) {
+    console.error('Connection error:', error);
     return false;
   }
 }
@@ -144,27 +159,28 @@ function connectToServer(address) {
     socket.close();
   }
 
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsAddress = `${protocol}//${address}`;
-  
+  // Remove any trailing slashes from the address
+  address = address.replace(/\/+$/, '');
+
   try {
-    socket = new WebSocket(wsAddress);
+    console.log('Attempting to connect to:', address);
+    socket = new WebSocket(`ws://${address}`);
     
     socket.onopen = () => {
       console.log('Connected to server:', address);
       currentServer = address;
+      currentBaseUrl = `http://${address}`; // Update the base URL for API calls
       serverPanel.style.display = 'none';
       setupPanel.style.display = 'block';
-      status.textContent = ''; // Clear any error messages
+      status.textContent = '';
+      setupWebSocketHandlers();
     };
     
     socket.onclose = () => {
       console.log('Disconnected from server');
       if (currentServer === address) {
-        // Only show connection error if we're not in an active game
         if (!isPlayingBot && !opponentName) {
           status.textContent = 'Connection lost. Attempting to reconnect...';
-          // Attempt to reconnect after a delay
           setTimeout(() => {
             if (!socket || socket.readyState !== WebSocket.OPEN) {
               connectToServer(address);
@@ -173,19 +189,32 @@ function connectToServer(address) {
         }
       }
     };
-    
-    setupWebSocketHandlers();
+
+    socket.onerror = (error) => {
+      console.error('WebSocket error:', error);
+      status.textContent = 'Connection error. Please check the server address and try again.';
+    };
   } catch (error) {
     console.error('Error connecting to server:', error);
-    status.textContent = 'Connection error. Click Find Match to try again.';
+    status.textContent = 'Connection error. Please check the server address and try again.';
   }
+}
+
+// Helper function to construct API URLs
+function getApiUrl(endpoint) {
+  // Remove any leading slash from endpoint and trailing slash from currentBaseUrl
+  endpoint = endpoint.replace(/^\/+/, '');
+  const baseUrl = currentBaseUrl.replace(/\/+$/, '');
+  return `${baseUrl}/${endpoint}`;
 }
 
 // Manual connection handler
 connectBtn.onclick = () => {
   const address = serverAddress.value.trim();
   if (address) {
-    connectToServer(address);
+    // Remove any protocol prefix if user added it
+    const cleanAddress = address.replace(/^(ws:\/\/|http:\/\/)/i, '');
+    connectToServer(cleanAddress);
   } else {
     alert('Please enter a server address');
   }
@@ -220,7 +249,7 @@ registerBtn.onclick = async () => {
   }
 
   try {
-    const response = await fetch('/api/register', {
+    const response = await fetch(getApiUrl('api/register'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -228,6 +257,10 @@ registerBtn.onclick = async () => {
         password: registerPassword.value
       })
     });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
 
     const data = await response.json();
     if (data.success) {
@@ -241,6 +274,7 @@ registerBtn.onclick = async () => {
       alert(data.error);
     }
   } catch (error) {
+    console.error('Register error:', error);
     alert('L\'inscription a échoué. Veuillez réessayer.');
   }
 };
@@ -253,7 +287,7 @@ loginBtn.onclick = async () => {
   }
 
   try {
-    const response = await fetch('/api/login', {
+    const response = await fetch(getApiUrl('api/login'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -261,6 +295,10 @@ loginBtn.onclick = async () => {
         password: loginPassword.value
       })
     });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
 
     const data = await response.json();
     if (data.success) {
@@ -277,13 +315,14 @@ loginBtn.onclick = async () => {
         socket.send(JSON.stringify({ 
           type: 'set_name', 
           name: playerName,
-          autoMatch: false // Add flag to prevent auto-matching
+          autoMatch: false
         }));
       }
     } else {
       alert(data.error);
     }
   } catch (error) {
+    console.error('Login error:', error);
     alert('La connexion a échoué. Veuillez réessayer.');
   }
 };
@@ -318,9 +357,17 @@ function resetGame() {
   updateStats(null, true);
 }
 
-// Move existing WebSocket event handlers to a separate function
-function setupWebSocketHandlers() {
-  socket.onmessage = event => {
+// Modify the setupWebSocketHandlers function
+function setupWebSocketHandlers(ws = null) {
+  // If ws is provided, use it, otherwise use the global socket
+  const socketToUse = ws || socket;
+  
+  if (!socketToUse) {
+    console.error('No WebSocket connection available');
+    return;
+  }
+
+  socketToUse.onmessage = event => {
     const msg = JSON.parse(event.data);
     console.log('Message received:', msg.type);
 
@@ -353,7 +400,7 @@ function setupWebSocketHandlers() {
       updateTurnStatus();
 
       // Request opponent's stats
-      socket.send(JSON.stringify({
+      socketToUse.send(JSON.stringify({
         type: 'request_stats',
         username: opponentName
       }));
@@ -416,7 +463,7 @@ function setupWebSocketHandlers() {
     }
   };
 
-  socket.onerror = error => {
+  socketToUse.onerror = error => {
     console.error('WebSocket error:', error);
     if (!isPlayingBot && !opponentName) {
       status.textContent = 'Connection error. Click Find Match to try again.';
@@ -440,11 +487,11 @@ function updateStats(stats, isOpponent = false) {
     { games: opponentGames, wins: opponentWins, winRate: opponentWinRate } :
     { games: yourGames, wins: yourWins, winRate: yourWinRate };
   
-  // Add stat labels and values structure
-  elements.games.innerHTML = `<span class="stat-label">Games:</span> <span class="stat-value total-games">${stats.total_games}</span>`;
-  elements.wins.innerHTML = `<span class="stat-label">Wins:</span> <span class="stat-value wins">${stats.wins}</span>`;
+  // Ajouter les étiquettes et la structure des valeurs des statistiques
+  elements.games.innerHTML = `<span class="stat-label">Parties:</span> <span class="stat-value total-games">${stats.total_games}</span>`;
+  elements.wins.innerHTML = `<span class="stat-label">Victoires:</span> <span class="stat-value wins">${stats.wins}</span>`;
   
-  // Calculate win rate and determine prestige class
+  // Calculer le taux de victoire et déterminer la classe de prestige
   const winRate = stats.winrate * 100;
   let prestigeClass = 'winrate-novice';
   
@@ -454,7 +501,7 @@ function updateStats(stats, isOpponent = false) {
   else if (winRate >= 55) prestigeClass = 'winrate-advanced';
   else if (winRate >= 45) prestigeClass = 'winrate-intermediate';
   
-  elements.winRate.innerHTML = `<span class="stat-label">Win Rate:</span> <span class="stat-value win-rate ${prestigeClass}">${winRate.toFixed(1)}%</span>`;
+  elements.winRate.innerHTML = `<span class="stat-label">Taux de victoire:</span> <span class="stat-value win-rate ${prestigeClass}">${winRate.toFixed(1)}%</span>`;
   
   if (isOpponent) {
     opponentStats = stats;
@@ -488,7 +535,10 @@ function updatePlayerInfo() {
 
 async function updateRankings() {
   try {
-    const response = await fetch('/api/rankings');
+    const response = await fetch(getApiUrl('api/rankings'));
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
     const rankings = await response.json();
     
     rankingsBody.innerHTML = rankings.map((player, index) => `
@@ -534,16 +584,16 @@ function renderBoard() {
 }
 
 function handleCellClick(index) {
-  // Check if cell is already taken or it's not player's turn
+  // Vérifie si la case est déjà prise ou si ce n'est pas le tour du joueur
   if (cells[index].textContent || !myTurn) {
     return;
   }
 
   if (isPlayingBot) {
-    // Handle bot game move
+    // Gestion du coup contre le bot
     placeMark(index, myMark);
   } else {
-    // Handle multiplayer game move
+    // Gestion du coup en multijoueur
     socket.send(JSON.stringify({ type: 'move', index: index }));
   }
 }
@@ -562,14 +612,14 @@ function placeMark(index, mark) {
     cell.classList.add('taken', mark);
 
     if (isPlayingBot) {
-      // Check if game is over after player's move
+      // Vérifie si la partie est terminée après le coup du joueur
       const boardState = getBoardState();
       const winner = checkWinner(boardState);
       
       if (winner || isBoardFull()) {
         handleGameOver();
       } else {
-        // Bot's turn
+        // Tour du bot
         myTurn = false;
         updateTurnStatus();
         setTimeout(makeBotMove, 1000);
@@ -587,7 +637,7 @@ function isBoardFull() {
 }
 
 function makeBotMove() {
-  if (!isPlayingBot || myTurn) return;  // Add myTurn check to prevent multiple bot moves
+  if (!isPlayingBot || myTurn) return;  // Vérifie myTurn pour éviter les coups multiples du bot
 
   const board = getBoardState();
   const availableMoves = board.reduce((moves, cell, index) => {
@@ -595,23 +645,23 @@ function makeBotMove() {
     return moves;
   }, []);
 
-  // Simple bot strategy for normal difficulty
+  // Stratégie simple du bot pour une difficulté normale
   let moveIndex;
 
-  // First, check if bot can win
+  // D'abord, vérifie si le bot peut gagner
   moveIndex = findWinningMove(board, 'O');
   
-  // Then, block player's winning move
+  // Ensuite, bloque le coup gagnant du joueur
   if (moveIndex === -1) {
     moveIndex = findWinningMove(board, 'X');
   }
   
-  // If no winning moves, try to take center
+  // Si pas de coup gagnant, essaie de prendre le centre
   if (moveIndex === -1 && board[4] === null) {
     moveIndex = 4;
   }
   
-  // If center taken, try corners
+  // Si le centre est pris, essaie les coins
   if (moveIndex === -1) {
     const corners = [0, 2, 6, 8].filter(i => board[i] === null);
     if (corners.length > 0) {
@@ -619,17 +669,17 @@ function makeBotMove() {
     }
   }
   
-  // If no special moves, take random available spot
+  // Si pas de coup spécial, prend une case disponible au hasard
   if (moveIndex === -1 && availableMoves.length > 0) {
     moveIndex = availableMoves[Math.floor(Math.random() * availableMoves.length)];
   }
 
   if (moveIndex !== -1) {
     placeMark(moveIndex, 'O');
-    myTurn = true;  // Give turn back to player
+    myTurn = true;  // Redonne le tour au joueur
     updateTurnStatus();
     
-    // Check if game is over after bot's move
+    // Vérifie si la partie est terminée après le coup du bot
     const boardState = getBoardState();
     const winner = checkWinner(boardState);
     
@@ -641,9 +691,9 @@ function makeBotMove() {
 
 function findWinningMove(board, mark) {
   const wins = [
-    [0,1,2], [3,4,5], [6,7,8], // Rows
-    [0,3,6], [1,4,7], [2,5,8], // Columns
-    [0,4,8], [2,4,6] // Diagonals
+    [0,1,2], [3,4,5], [6,7,8], // Lignes
+    [0,3,6], [1,4,7], [2,5,8], // Colonnes
+    [0,4,8], [2,4,6] // Diagonales
   ];
 
   for (const [a, b, c] of wins) {
@@ -674,7 +724,7 @@ function handleGameOver() {
     status.innerHTML = '<span class="draw">Match nul !</span>';
   }
 
-  // Update stats
+  // Mise à jour des statistiques
   if (winner === myMark) {
     updatePlayerStats('win');
   } else if (winner === 'O') {
@@ -683,7 +733,7 @@ function handleGameOver() {
     updatePlayerStats('draw');
   }
 
-  // Show rematch UI
+  // Affiche l'interface de revanche
   showRematchUI();
 }
 
@@ -801,7 +851,7 @@ function resetBotGame() {
 
 async function updatePlayerStats(result) {
   try {
-    await fetch('/api/update-stats', {
+    const updateResponse = await fetch(getApiUrl('api/update-stats'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -811,22 +861,30 @@ async function updatePlayerStats(result) {
         result: result
       })
     });
+
+    if (!updateResponse.ok) {
+      throw new Error(`HTTP error! status: ${updateResponse.status}`);
+    }
     
-    const response = await fetch(`/api/stats/${playerName}`);
-    const stats = await response.json();
+    const statsResponse = await fetch(getApiUrl(`api/stats/${playerName}`));
+    if (!statsResponse.ok) {
+      throw new Error(`HTTP error! status: ${statsResponse.status}`);
+    }
+    
+    const stats = await statsResponse.json();
     updateStats(stats);
   } catch (error) {
     console.error('Error updating stats:', error);
   }
 }
 
-// Game mode selection handlers
+// Gestionnaires de sélection du mode de jeu
 findMatchBtn.onclick = () => {
   if (!socket || socket.readyState !== WebSocket.OPEN) {
-    console.log('Reconnecting to server...');
+    console.log('Reconnexion au serveur...');
     const currentAddr = currentServer || window.location.host;
     connectToServer(currentAddr);
-    // Wait for connection before sending find_match
+    // Attendre la connexion avant d'envoyer find_match
     socket.onopen = () => {
       socket.send(JSON.stringify({ type: 'set_name', name: playerName, autoMatch: false }));
       socket.send(JSON.stringify({ type: 'find_match' }));
@@ -845,14 +903,14 @@ playBotBtn.onclick = () => {
   gameModeSelection.style.display = 'none';
   board.style.display = 'grid';
   opponentName = 'Bot';
-  myMark = 'X';  // Player always starts as X against bot
+  myMark = 'X';  // Le joueur commence toujours avec X contre le bot
   myTurn = true;
   updatePlayerInfo();
   renderBoard();
   updateTurnStatus();
   status.textContent = 'Partie contre le Bot';
   
-  // Set up bot stats
+  // Configuration des statistiques du bot
   const botStats = {
     username: 'Bot',
     total_games: 999,
@@ -939,12 +997,12 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
-// Add checkWinner function if it doesn't exist
+// Fonction de vérification du gagnant
 function checkWinner(board) {
   const wins = [
-    [0,1,2], [3,4,5], [6,7,8], // Rows
-    [0,3,6], [1,4,7], [2,5,8], // Columns
-    [0,4,8], [2,4,6] // Diagonals
+    [0,1,2], [3,4,5], [6,7,8], // Lignes
+    [0,3,6], [1,4,7], [2,5,8], // Colonnes
+    [0,4,8], [2,4,6] // Diagonales
   ];
   
   for (const [a, b, c] of wins) {

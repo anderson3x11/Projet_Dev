@@ -7,8 +7,9 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "electron .",
     "server": "node server.js",
-    "client": "electron . --client",
-    "dev": "concurrently \"npm run server\" \"npm run client\""
+    "client": "cross-env NODE_ENV=production electron . --client",
+    "client:dev": "cross-env NODE_ENV=development electron . --client",
+    "dev": "concurrently \"npm run server\" \"npm run client:dev\""
   },
   "repository": {
     "type": "git",
@@ -22,10 +23,11 @@
   },
   "homepage": "https://github.com/anderson3x11/Projet_Dev#readme",
   "dependencies": {
+    "cross-env": "^7.0.3",
+    "electron": "^29.1.4",
     "express": "^5.1.0",
     "sqlite3": "^5.1.7",
     "ws": "^8.18.2",
-    "electron": "^29.1.4",
     "yargs": "^17.7.2"
   },
   "devDependencies": {

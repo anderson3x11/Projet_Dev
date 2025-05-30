@@ -13,22 +13,36 @@ function createWindow() {
     height: 800,
     webPreferences: {
       nodeIntegration: true,
-      contextIsolation: false
+      contextIsolation: false,
+      // Désactiver la sécurité web uniquement en mode développement
+      webSecurity: !process.env.NODE_ENV || process.env.NODE_ENV === 'development'
     }
   });
 
-  // If running in client mode, load the index.html directly
+  // Si en mode client, charger directement le fichier index.html
   if (argv.client) {
     mainWindow.loadFile(path.join(__dirname, 'public', 'index.html'));
+    
+    // Ouvrir les outils de développement uniquement en mode développement
+    if (process.env.NODE_ENV === 'development') {
+      mainWindow.webContents.openDevTools();
+    }
+    
+    // Journaliser les erreurs de chargement
+    mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+      console.error('Échec du chargement:', errorDescription);
+    });
   } else {
-    // Start the server and load from localhost
+    // Démarrer le serveur et charger depuis localhost
     server = require('./server');
     mainWindow.loadURL('http://localhost:8080');
   }
 
-  // Open DevTools in development
+  // Journaliser les messages de la console du renderer uniquement en mode développement
   if (process.env.NODE_ENV === 'development') {
-    mainWindow.webContents.openDevTools();
+    mainWindow.webContents.on('console-message', (event, level, message) => {
+      console.log('Console Renderer:', message);
+    });
   }
 }
 
@@ -46,7 +60,7 @@ app.on('activate', () => {
   }
 });
 
-// Handle app quit
+// Gestion de la fermeture de l'application
 app.on('before-quit', () => {
   if (server) {
     server.close();
