@@ -93,14 +93,26 @@ app.post('/api/update-stats', async (req, res) => {
 });
 
 // Démarrage du serveur sur le port 8080 et toutes les interfaces
-server.listen(8080, '0.0.0.0', () => {
-  const addresses = getLocalIPs();
-  console.log('Serveur démarré sur:');
-  console.log('- Local: http://localhost:8080');
-  addresses.forEach(addr => {
-    console.log(`- Network: http://${addr}:8080`);
+function startServer() {
+  server.listen(8080, '0.0.0.0', () => {
+    const addresses = getLocalIPs();
+    console.log('Serveur démarré sur:');
+    console.log('- Local: http://localhost:8080');
+    addresses.forEach(addr => {
+      console.log(`- Network: http://${addr}:8080`);
+    });
   });
-});
+  
+  return server;
+}
+
+// Start the server if running directly
+if (require.main === module) {
+  startServer();
+}
+
+// Export for use in Electron
+module.exports = startServer();
 
 // Variables globales pour la gestion des joueurs et des parties
 let waitingPlayer = null;
