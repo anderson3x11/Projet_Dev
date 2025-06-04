@@ -33,39 +33,23 @@ npm install
 
 ## Modes d'utilisation
 
+### Mode Client 
+Pour lancer le client (pour se connecter à un serveur distant) :
+```bash
+npm run client
+```
+
+### Mode Serveur 
+Pour lancer le serveur :
+```bash
+npm run server
+```
+
 ### Mode Serveur + Client (tout-en-un)
 Pour lancer l'application en mode serveur et client sur la même machine :
 ```bash
 npm start
 ```
-
-### Mode Client seul
-Pour lancer uniquement le client (pour se connecter à un serveur distant) :
-```bash
-npm run client
-```
-
-### Mode Développement
-Pour lancer l'application en mode développement avec les outils de développement :
-```bash
-npm run dev
-```
-
-### Mode Serveur seul
-Pour lancer uniquement le serveur :
-```bash
-npm run server
-```
-
-## Structure du Projet
-
-- `main.js` : Point d'entrée de l'application Electron
-- `server.js` : Serveur WebSocket et API REST
-- `database.js` : Gestion de la base de données SQLite
-- `public/` : Contient les fichiers du client
-  - `index.html` : Interface utilisateur
-  - `style.css` : Styles de l'interface
-  - `client.js` : Logique côté client
 
 ## Utilisation
 
@@ -79,7 +63,6 @@ npm run server
 
 ## Fonctionnalités de Jeu
 
-- Système de tours alternés
 - Statistiques en temps réel
 - Affichage du classement
 - Possibilité de continuer à jouer avec le même adversaire
@@ -98,18 +81,3 @@ Le jeu utilise SQLite pour stocker :
 - Validation des noms d'utilisateur
 - Protection contre les connexions multiples
 - Gestion sécurisée des sessions WebSocket
-
-## Dépannage
-
-1. Problèmes de connexion :
-   - Vérifiez que le port 8080 est ouvert sur le pare-feu
-   - Assurez-vous d'utiliser la bonne adresse IP du serveur
-
-2. Base de données :
-   - Si la base de données est corrompue, supprimez le fichier `tictactoe.db`
-   - Relancez le serveur pour recréer la base de données
-
-3. Problèmes de client :
-   - Vérifiez la connexion réseau
-   - Assurez-vous que le serveur est en cours d'exécution
-   - Essayez de redémarrer le client
